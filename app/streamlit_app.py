@@ -25,16 +25,8 @@ PROCESSED_TRAIN_PATH = Path("data/processed/train.csv")
 
 @st.cache_resource
 def load_model():
-    try:
-        return mlflow.lightgbm.load_model(MODEL_URI)
-    except Exception as e:
-        st.error(
-            f"Couldn't load model from `{MODEL_URI}`. "
-            f"Train a model first with `python src/train.py`, then register it "
-            f"in MLflow as 'churn-model' / stage 'Production'. Error: {e}"
-        )
-        st.stop()
-
+    import joblib
+    return joblib.load("models/churn_model.pkl")
 
 @st.cache_resource
 def load_explainer(_model, background_df):
