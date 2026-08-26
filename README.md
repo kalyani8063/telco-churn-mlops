@@ -5,7 +5,7 @@ explains *why* per customer via SHAP, and was built around a fully open-source M
 MLflow (experiment tracking + model registry), SHAP (explainability), scikit-learn/XGBoost/
 LightGBM (modeling), and Streamlit (serving). Live demo below.
 
-**[Live app →](https://YOUR-APP-URL.streamlit.app)** *(replace with your actual deployed URL)*
+**[Live app →]https://appapppy-f3cjurtapn5cdezymr5gkn.streamlit.app/** 
 
 ## Problem Statement
 
