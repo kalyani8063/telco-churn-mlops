@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Customer Churn Prediction — End-to-End MLOps Pipeline
 
 Predicts which telecom customers are likely to churn, ranks them by risk, and explains *why*
@@ -111,3 +112,6 @@ python src/monitor.py   # generates evidently_report.html
 ## License
 
 MIT
+=======
+# telco-churn-mlops
+>>>>>>> d8c76802924183b34b0f03e2ef6aed91c8de6692
