@@ -20,7 +20,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 # Set this to the run_id of your chosen best model from MLflow, e.g.
 # MODEL_URI = "runs:/<run_id>/model"
-MODEL_URI = "models:/churn-model/Production"  # or point at a specific runs:/ URI
+MODEL_URI = "models:/churn-model@production"  # or point at a specific runs:/ URI
 
 
 def load_test_data():

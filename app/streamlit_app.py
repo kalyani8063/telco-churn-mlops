@@ -4,30 +4,29 @@ Streamlit demo: customer churn risk scoring with SHAP-based explanations.
 Run locally:
     streamlit run app/streamlit_app.py
 """
+import sys
+from pathlib import Path
+
 import streamlit as st
 import pandas as pd
-import numpy as np
 import shap
 import matplotlib.pyplot as plt
 import mlflow
 import os
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from src.preprocess import clean, encode
+
 st.set_page_config(page_title="Churn Risk Predictor", layout="centered")
 
-MODEL_URI = os.environ.get("MODEL_URI", "models:/churn-model/Production")
-
-FEATURE_COLS = [
-    "gender", "SeniorCitizen", "Partner", "Dependents", "Tenure", "PhoneService",
-    "MultipleLines", "InternetService", "OnlineSecurity", "OnlineBackup",
-    "DeviceProtection", "TechSupport", "StreamingTV", "StreamingMovies",
-    "Contract", "PaperlessBilling", "PaymentMethod", "MonthlyCharges", "TotalCharges",
-]
+MODEL_URI = os.environ.get("MODEL_URI", "models:/churn-model@production")
+PROCESSED_TRAIN_PATH = Path("data/processed/train.csv")
 
 
 @st.cache_resource
 def load_model():
     try:
-        return mlflow.sklearn.load_model(MODEL_URI)
+        return mlflow.lightgbm.load_model(MODEL_URI)
     except Exception as e:
         st.error(
             f"Couldn't load model from `{MODEL_URI}`. "
@@ -42,13 +41,56 @@ def load_explainer(_model, background_df):
     return shap.Explainer(_model.predict, background_df)
 
 
-def get_background_sample():
-    """Small reference sample used by SHAP; falls back to zeros if no data available."""
+@st.cache_resource
+def load_training_columns():
+    """The exact one-hot-encoded feature columns (and order) the model was trained on."""
     try:
-        df = pd.read_csv("data/processed/train.csv").drop(columns=["Churn"])
-        return df.sample(min(100, len(df)), random_state=42)
+        return [c for c in pd.read_csv(PROCESSED_TRAIN_PATH, nrows=0).columns if c != "Churn"]
     except FileNotFoundError:
-        return pd.DataFrame([np.zeros(len(FEATURE_COLS))], columns=FEATURE_COLS)
+        st.error(
+            "Couldn't find `data/processed/train.csv`. Run `python src/preprocess.py` "
+            "first so the app knows the model's expected feature columns."
+        )
+        st.stop()
+
+
+def get_background_sample():
+    df = pd.read_csv(PROCESSED_TRAIN_PATH).drop(columns=["Churn"])
+    return df.sample(min(100, len(df)), random_state=42)
+
+
+def build_model_row(
+    model_columns, *, tenure, monthly_charges, total_charges, contract, internet,
+    senior, partner, dependents, paperless, tech_support,
+):
+    """Build a single-customer row through the same clean()/encode() pipeline used
+    at training time, then align it to the model's actual training columns — so a
+    category not chosen in the form correctly ends up as 0 rather than missing."""
+    raw_row = pd.DataFrame([{
+        "customerID": "DEMO-0000",
+        "gender": "Female",
+        "SeniorCitizen": int(senior),
+        "Partner": "Yes" if partner else "No",
+        "Dependents": "Yes" if dependents else "No",
+        "tenure": tenure,
+        "PhoneService": "Yes",
+        "MultipleLines": "No",
+        "InternetService": internet,
+        "OnlineSecurity": "No",
+        "OnlineBackup": "No",
+        "DeviceProtection": "No",
+        "TechSupport": tech_support,
+        "StreamingTV": "No",
+        "StreamingMovies": "No",
+        "Contract": contract,
+        "PaperlessBilling": "Yes" if paperless else "No",
+        "PaymentMethod": "Electronic check",
+        "MonthlyCharges": monthly_charges,
+        "TotalCharges": total_charges,
+        "Churn": "No",
+    }])
+    encoded = encode(clean(raw_row)).drop(columns=["Churn"])
+    return encoded.reindex(columns=model_columns, fill_value=0)
 
 
 def main():
@@ -59,6 +101,7 @@ def main():
     )
 
     model = load_model()
+    model_columns = load_training_columns()
     background = get_background_sample()
     explainer = load_explainer(model, background)
 
@@ -80,22 +123,12 @@ def main():
         submitted = st.form_submit_button("Predict churn risk")
 
     if submitted:
-        # NOTE: this mapping must match whatever encoding preprocess.py used at
-        # training time. Wire this up to the real LabelEncoder mappings you saved
-        # during preprocessing rather than hand-coding indices like this demo does.
-        contract_map = {"Month-to-month": 0, "One year": 1, "Two year": 2}
-        internet_map = {"DSL": 0, "Fiber optic": 1, "No": 2}
-        tech_map = {"Yes": 1, "No": 0, "No internet service": 2}
-
-        row = pd.DataFrame([{
-            "gender": 0, "SeniorCitizen": int(senior), "Partner": int(partner),
-            "Dependents": int(dependents), "Tenure": tenure, "PhoneService": 1,
-            "MultipleLines": 0, "InternetService": internet_map[internet],
-            "OnlineSecurity": 0, "OnlineBackup": 0, "DeviceProtection": 0,
-            "TechSupport": tech_map[tech_support], "StreamingTV": 0, "StreamingMovies": 0,
-            "Contract": contract_map[contract], "PaperlessBilling": int(paperless),
-            "PaymentMethod": 2, "MonthlyCharges": monthly_charges, "TotalCharges": total_charges,
-        }])[FEATURE_COLS]
+        row = build_model_row(
+            model_columns,
+            tenure=tenure, monthly_charges=monthly_charges, total_charges=total_charges,
+            contract=contract, internet=internet, senior=senior, partner=partner,
+            dependents=dependents, paperless=paperless, tech_support=tech_support,
+        )
 
         proba = model.predict_proba(row)[0, 1]
         st.metric("Predicted churn probability", f"{proba:.1%}")
@@ -107,7 +140,7 @@ def main():
 
         st.subheader("Top factors driving this prediction")
         shap_values = explainer(row)
-        contributions = pd.Series(shap_values.values[0], index=FEATURE_COLS)
+        contributions = pd.Series(shap_values.values[0], index=row.columns)
         top = contributions.reindex(contributions.abs().sort_values(ascending=False).index).head(5)
 
         fig, ax = plt.subplots()

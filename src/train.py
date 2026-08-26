@@ -8,6 +8,7 @@ Run:
 import pandas as pd
 import mlflow
 import mlflow.sklearn
+import mlflow.xgboost
 from pathlib import Path
 
 from sklearn.linear_model import LogisticRegression
@@ -53,7 +54,12 @@ def log_run(run_name: str, model, X_train, y_train, X_test, y_test, params: dict
 
         mlflow.log_params(params)
         mlflow.log_metrics(metrics)
-        mlflow.sklearn.log_model(model, artifact_path="model")
+        if isinstance(model, xgb.XGBClassifier):
+            mlflow.xgboost.log_model(model, name="model")
+        elif isinstance(model, lgb.LGBMClassifier):
+            mlflow.lightgbm.log_model(model, name="model")
+        else:
+            mlflow.sklearn.log_model(model, name="model")
 
         print(f"{run_name:30s} | " + " | ".join(f"{k}={v:.3f}" for k, v in metrics.items()))
         return metrics
