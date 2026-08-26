@@ -4,6 +4,8 @@ data/raw/*
 !data/raw/*.dvc
 data/processed/*
 !data/processed/.gitkeep
+!data/processed/train.csv
+!data/processed/test.csv
 
 # python
 __pycache__/
@@ -20,3 +22,6 @@ mlartifacts/
 *.egg-info/
 .pytest_cache/
 evidently_report.html
+# mlflow
+mlruns/
+mlartifacts/
