@@ -1,0 +1,21 @@
+# data (DVC-tracked, not git-tracked directly)
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# mlflow
+mlruns/
+mlartifacts/
+
+# misc
+.DS_Store
+*.egg-info/
+.pytest_cache/
+evidently_report.html
